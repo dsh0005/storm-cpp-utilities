@@ -21,10 +21,15 @@
 #include <thread>
 #include <future>
 
+#include <cstddef>
+
 #include "mpmc_queue.hpp"
 using namespace storm;
 
+using std::cout;
+
 static void instantiate_some_queues(){
+	cout << "instantiating some mpmc_queues\n";
 	// just instantiate some queues with different types
 	// This tests the templating, constructors, and destructors
 	mpmc_queue<int> qi;
@@ -32,8 +37,44 @@ static void instantiate_some_queues(){
 
 	// how about something non-copyable?
 	mpmc_queue<std::future<void>> qfut;
+
+	cout << "destroying some mpmc_queues\n";
+}
+
+static void test_push_and_size(){
+	mpmc_queue<int> q;
+
+	for(int i = 0; i < 10; i++){
+		q.push(i);
+		q.emplace(i);
+	}
+
+	const std::size_t sz = q.size();
+	if(sz != 20){
+		cout << "queue size wrong! " << sz << '\n';
+	}else{
+		cout << "queue size looks good\n";
+	}
+
+	std::size_t sz_count = 0;
+	while(!q.empty()){
+		const auto i = q.try_pop();
+		if(!i.has_value()){
+			cout << "queue ran out early!\n";
+		}
+		sz_count++;
+	}
+
+	cout << "Got " << sz_count << " elements back out from queue.\n";
+
+	if(!q.empty()){
+		cout << "Queue is not empty when it should be!\n";
+	}
 }
 
 int main(int /* argc */, char ** /* argv */){
 	instantiate_some_queues();
+	cout << "instantiating queues finished.\n";
+
+	test_push_and_size();
 }
