@@ -52,7 +52,7 @@ namespace storm {
 	 */
 	template<
 		typename T,
-		typename Container = std::queue<T>::container_type>
+		typename Container = typename std::queue<T>::container_type>
 	class mpmc_queue {
 	public:
 		// Constructor and destructor are default, and not interesting.
@@ -81,7 +81,7 @@ namespace storm {
 			cv.notify_one();
 		}
 		// And the "move into" version of above.
-		void push(T &&T){
+		void push(T &&t){
 			{
 				std::lock_guard<std::shared_mutex> lk(mtx);
 				q.push(std::move(t));
@@ -180,7 +180,7 @@ namespace storm {
 		 * This is here because std::queue has it. Don't use it, because it's
 		 * inherently racy.
 		 */
-		[[nodiscard]] std::queue<T, Container>::size_type size() const {
+		[[nodiscard]] typename std::queue<T, Container>::size_type size() const {
 			std::shared_lock<std::shared_mutex> lk(mtx);
 			return q.size();
 		}
