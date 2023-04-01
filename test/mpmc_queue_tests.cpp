@@ -21,8 +21,10 @@
 #include <thread>
 #include <future>
 #include <latch>
+#include <vector>
 
 #include <cstddef>
+#include <cassert>
 
 #include "mpmc_queue.hpp"
 using namespace storm;
@@ -99,22 +101,61 @@ static void normal_consumer(
 	}
 }
 
-// test with a single producer and consumer on different threads
-static void test_with_spsc(){
+// test with producer(s) and consumer(s) on different threads
+static void test_with_concurrency(const int producers, const int consumers){
 	// Here's the queue we'll be testing.
 	auto q = std::make_shared<mpmc_queue<float>>();
 	// This is to _try_ to aggravate data races by reducing the amount of
 	// tasks after startup/sync but before potentially racing.
-	// 1 producer + 1 consumer = 3
-	std::latch start(2);
+	std::latch start(producers+consumers);
 
-	static constexpr int num_items = 1'000'000;
+	static constexpr int num_items = 10'000'000;
 
-	auto prod_fut = std::async(std::launch::async, normal_producer, q, num_items, std::ref(start));
-	auto cons_fut = std::async(std::launch::async, normal_consumer, q, num_items, std::ref(start));
+	// Here's where we keep the futures for the producer and consumer tasks.
+	std::vector<std::future<void>> producer_futs;
+	std::vector<std::future<void>> consumer_futs;
 
-	prod_fut.wait();
-	cons_fut.wait();
+	// Here's a naive estimate of how many items per worker to run.
+	const int items_per_producer = num_items / producers;
+	const int items_per_consumer = num_items / consumers;
+
+	// And here's where we keep track of the number of items left.
+	int producer_items_left = num_items;
+	int consumer_items_left = num_items;
+
+	// We distribute extra onto the last worker to avoid any questions about
+	// rounding in the division op.
+	for(int i = 0; i < producers-1; i++){
+		producer_futs.push_back(
+			std::async(std::launch::async,
+				normal_producer, q, items_per_producer, std::ref(start)));
+
+		producer_items_left -= items_per_producer;
+
+		assert(producer_items_left > 0);
+	}
+	for(int i = 0; i < consumers-1; i++){
+		consumer_futs.push_back(
+			std::async(std::launch::async,
+				normal_consumer, q, items_per_consumer, std::ref(start)));
+
+		consumer_items_left -= items_per_consumer;
+
+		assert(consumer_items_left > 0);
+	}
+
+	// Now put the remaining work on the last workers.
+	producer_futs.push_back(
+		std::async(std::launch::async,
+			normal_producer, q, producer_items_left, std::ref(start)));
+	producer_items_left = 0;
+	consumer_futs.push_back(
+		std::async(std::launch::async,
+			normal_consumer, q, consumer_items_left, std::ref(start)));
+	consumer_items_left = 0;
+
+	// We could loop over the vectors and wait, but why do that when
+	// the destructors do the job for us?
 }
 
 int main(int /* argc */, char ** /* argv */){
@@ -125,5 +166,16 @@ int main(int /* argc */, char ** /* argv */){
 	test_push_and_size();
 
 	cout << "Running basic single-producer single-consumer tests.\n";
-	test_with_spsc();
+	test_with_concurrency(1, 1);
+
+	cout << "Running MPMC tests with small amounts of concurrency.\n";
+	cout << "1p2c: " << std::flush;
+	test_with_concurrency(1, 2);
+	cout << "done\n";
+	cout << "2p1c: " << std::flush;
+	test_with_concurrency(2, 1);
+	cout << "done\n";
+	cout << "2p2c: " << std::flush;
+	test_with_concurrency(2, 2);
+	cout << "done\n";
 }
