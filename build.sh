@@ -27,3 +27,9 @@ g++ $BASIC_CXX_FLAGS $BASIC_WARN_FLAGS $INCLUDES \
   -fsanitize=thread \
   test/mpmc_queue_tests.cpp \
   -o build/mpmc_queue_tests_tsan
+
+g++ $BASIC_CXX_FLAGS $BASIC_WARN_FLAGS $INCLUDES \
+  -Og -ggdb3 $FORTIFY_FLAGS $PIE_FLAGS $RELRO_FLAGS \
+  -fsanitize=undefined \
+  test/mpmc_queue_tests.cpp \
+  -o build/mpmc_queue_tests_ubsan
