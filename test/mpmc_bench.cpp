@@ -71,6 +71,63 @@ static void normal_consumer(
 	stop_signal.arrive_and_wait();
 }
 
+// Compiler barrier macro to make sure it does the work we ask for.
+// At least for GCC, having no outputs makes it implicitly __volatile__.
+#define barrier() do { __asm__("":::"memory"); } while(0)
+
+// simulate putting n items into q, but do it to a local stub
+// value: the value to put copies of into q
+template<typename T>
+static void stub_producer(
+		[[maybe_unused]] const std::shared_ptr<mpmc_queue<T>> unused_q,
+		const int n,
+		const T value,
+		std::latch &start_signal,
+		std::latch &stop_signal
+		){
+	// here's the local queue that we use as a surrogate
+	auto q = std::make_shared<std::queue<T>>();
+
+	start_signal.arrive_and_wait();
+
+	for(int i = 0; i < n; i++){
+		q->push(value);
+	}
+
+	barrier();
+
+	stop_signal.arrive_and_wait();
+}
+
+// simulate popping n items from q, but do it to a local stub
+template<typename T>
+static void stub_consumer(
+		[[maybe_unused]] const std::shared_ptr<mpmc_queue<T>> unused_q,
+		const int n,
+		std::latch &start_signal,
+		std::latch &stop_signal
+		){
+	// Here's the local queue that we use as a surrogate
+	auto q = std::make_shared<std::queue<T>>();
+
+	// We need to fill it up first.
+	for(int i = 0; i < n; i++){
+		q->push(T());
+	}
+
+	barrier();
+
+	start_signal.arrive_and_wait();
+
+	for(int i = 0; i < n; i++){
+		[[maybe_unused]] T loc = std::move(q->front());
+		barrier();
+		q->pop();
+	}
+
+	stop_signal.arrive_and_wait();
+}
+
 template<typename T>
 using producer_test_function =
 	std::function<void(
@@ -224,4 +281,25 @@ int main(int /* argc */, char ** /* argv */){
 	cout << "done\n";
 
 	print_results(test_results);
+
+	test_results_map stub_results;
+	cout << "Now testing with stub producers and consumers.\n";
+	stub_results.insert_or_assign(
+		std::make_pair(1, 1),
+		test_with_concurrency(1, 1, 1.0f, num_items,
+			stub_producer<float>, stub_consumer<float>));
+	stub_results.insert_or_assign(
+		std::make_pair(1, 2),
+		test_with_concurrency(1, 2, 1.0f, num_items,
+			stub_producer<float>, stub_consumer<float>));
+	stub_results.insert_or_assign(
+		std::make_pair(2, 1),
+		test_with_concurrency(2, 1, 1.0f, num_items,
+			stub_producer<float>, stub_consumer<float>));
+	stub_results.insert_or_assign(
+		std::make_pair(2, 2),
+		test_with_concurrency(2, 2, 1.0f, num_items,
+			stub_producer<float>, stub_consumer<float>));
+
+	print_results(stub_results);
 }
