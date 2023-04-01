@@ -20,6 +20,7 @@
 #include <iostream>
 #include <thread>
 #include <future>
+#include <latch>
 
 #include <cstddef>
 
@@ -72,9 +73,57 @@ static void test_push_and_size(){
 	}
 }
 
+// put n items into q
+static void normal_producer(
+		const std::shared_ptr<mpmc_queue<float>> q,
+		const int n,
+		std::latch &start_signal
+		){
+	start_signal.arrive_and_wait();
+
+	for(int i = 0; i < n; i++){
+		q->push(i);
+	}
+}
+
+// pop n items from q
+static void normal_consumer(
+		const std::shared_ptr<mpmc_queue<float>> q,
+		const int n,
+		std::latch &start_signal
+		){
+	start_signal.arrive_and_wait();
+
+	for(int i = 0; i < n; i++){
+		q->pop_wait();
+	}
+}
+
+// test with a single producer and consumer on different threads
+static void test_with_spsc(){
+	// Here's the queue we'll be testing.
+	auto q = std::make_shared<mpmc_queue<float>>();
+	// This is to _try_ to aggravate data races by reducing the amount of
+	// tasks after startup/sync but before potentially racing.
+	// 1 producer + 1 consumer = 3
+	std::latch start(2);
+
+	static constexpr int num_items = 1'000'000;
+
+	auto prod_fut = std::async(std::launch::async, normal_producer, q, num_items, std::ref(start));
+	auto cons_fut = std::async(std::launch::async, normal_consumer, q, num_items, std::ref(start));
+
+	prod_fut.wait();
+	cons_fut.wait();
+}
+
 int main(int /* argc */, char ** /* argv */){
 	instantiate_some_queues();
 	cout << "instantiating queues finished.\n";
 
+	cout << "Running basic tests of push() and size().\n";
 	test_push_and_size();
+
+	cout << "Running basic single-producer single-consumer tests.\n";
+	test_with_spsc();
 }
