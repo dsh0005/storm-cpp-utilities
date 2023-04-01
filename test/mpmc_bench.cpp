@@ -186,8 +186,8 @@ static void print_results(const test_results_map &map){
 		cout << concurrency.first << " Producer ";
 		cout << concurrency.second << " Consumer, ";
 		// FIXME: ugh, these don't align. That needs to be prettied up.
-		cout << "wall: " << right << setw(12) << times.wall_time;
-		cout << " cpu: " << right << setw(9) << times.cpu_time << '\n';
+		cout << "wall: " << right << setw(14) << times.wall_time;
+		cout << " cpu: " << right << setw(11) << times.cpu_time << '\n';
 	}
 }
 
