@@ -97,13 +97,12 @@ struct concurrency_test_time {
 // test with producer(s) and consumer(s) on different threads
 template<typename T>
 static concurrency_test_time test_with_concurrency(
-		const int producers, const int consumers, const T default_value,
+		const int producers, const int consumers,
+		const T default_value, const int num_items,
 		const producer_test_function<T> producer_function,
 		const consumer_test_function<T> consumer_function){
 	// Here's the queue we'll be testing.
 	auto q = std::make_shared<mpmc_queue<T>>();
-
-	static constexpr int num_items = 10'000'000;
 
 	// This is the wall clock start time.
 	std::chrono::time_point<std::chrono::steady_clock> wall_start;
@@ -196,29 +195,31 @@ int main(int /* argc */, char ** /* argv */){
 	// Here's where we store our results.
 	test_results_map test_results;
 
+	static constexpr int num_items = 1'000'000;
+
 	cout << "Running basic single-producer single-consumer tests.\n";
 	test_results.insert_or_assign(
 		std::make_pair(1, 1),
-		test_with_concurrency(1, 1, 1.0f,
+		test_with_concurrency(1, 1, 1.0f, num_items,
 			normal_producer<float>, normal_consumer<float>));
 
 	cout << "Running MPMC tests with small amounts of concurrency.\n";
 	cout << "1p2c: " << std::flush;
 	test_results.insert_or_assign(
 		std::make_pair(1, 2),
-		test_with_concurrency(1, 2, 1.0f,
+		test_with_concurrency(1, 2, 1.0f, num_items,
 			normal_producer<float>, normal_consumer<float>));
 	cout << "done\n";
 	cout << "2p1c: " << std::flush;
 	test_results.insert_or_assign(
 		std::make_pair(2, 1),
-		test_with_concurrency(2, 1, 1.0f,
+		test_with_concurrency(2, 1, 1.0f, num_items,
 			normal_producer<float>, normal_consumer<float>));
 	cout << "done\n";
 	cout << "2p2c: " << std::flush;
 	test_results.insert_or_assign(
 		std::make_pair(2, 2),
-		test_with_concurrency(2, 2, 1.0f,
+		test_with_concurrency(2, 2, 1.0f, num_items,
 			normal_producer<float>, normal_consumer<float>));
 	cout << "done\n";
 
