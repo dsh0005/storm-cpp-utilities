@@ -23,8 +23,10 @@
 #include <future>
 #include <latch>
 #include <vector>
+#include <array>
 #include <chrono>
 #include <map>
+#include <compare>
 #include <functional>
 
 #include <cstddef>
@@ -36,7 +38,21 @@ using namespace storm::test;
 
 using std::cout;
 
-using test_results_map = std::map<std::pair<int, int>, concurrency_test_time>;
+// How many producers and consumers are in a test.
+struct test_size {
+	int producers;
+	int consumers;
+};
+
+// and we want these to be orderable like tuples.
+constexpr std::strong_ordering operator<=>(
+		const test_size &lhs,
+		const test_size &rhs){
+	return std::make_tuple(lhs.producers, lhs.consumers) <=>
+	       std::make_tuple(rhs.producers, rhs.consumers);
+}
+
+using test_results_map = std::map<test_size, concurrency_test_time>;
 
 static void print_results(const test_results_map &map){
 	using std::setw;
@@ -44,9 +60,8 @@ static void print_results(const test_results_map &map){
 	// Might as well do it by value, since it's like 16 bytes.
 	// But GCC warns on that, and I don't know an idiom to surpress it.
 	for(const auto & [concurrency, times] : map){
-		cout << concurrency.first << " Producer ";
-		cout << concurrency.second << " Consumer, ";
-		// FIXME: ugh, these don't align. That needs to be prettied up.
+		cout << concurrency.producers << " Producer ";
+		cout << concurrency.consumers << " Consumer, ";
 		cout << "wall: " << right << setw(14) << times.wall_time;
 		cout << " cpu: " << right << setw(11) << times.cpu_time << '\n';
 	}
@@ -58,52 +73,36 @@ int main(int /* argc */, char ** /* argv */){
 
 	static constexpr int num_items = 1'000'000;
 
-	cout << "Running basic single-producer single-consumer tests.\n";
-	test_results.insert_or_assign(
-		std::make_pair(1, 1),
-		test_with_concurrency(1, 1, 1.0f, num_items,
-			normal_producer<float>, normal_consumer<float>));
+	static constexpr std::array test_sizes(std::to_array<test_size>({
+		{1, 1},
+		{1, 2},
+		{2, 1},
+		{2, 2},
+	}));
 
-	cout << "Running MPMC tests with small amounts of concurrency.\n";
-	cout << "1p2c: " << std::flush;
-	test_results.insert_or_assign(
-		std::make_pair(1, 2),
-		test_with_concurrency(1, 2, 1.0f, num_items,
-			normal_producer<float>, normal_consumer<float>));
-	cout << "done\n";
-	cout << "2p1c: " << std::flush;
-	test_results.insert_or_assign(
-		std::make_pair(2, 1),
-		test_with_concurrency(2, 1, 1.0f, num_items,
-			normal_producer<float>, normal_consumer<float>));
-	cout << "done\n";
-	cout << "2p2c: " << std::flush;
-	test_results.insert_or_assign(
-		std::make_pair(2, 2),
-		test_with_concurrency(2, 2, 1.0f, num_items,
-			normal_producer<float>, normal_consumer<float>));
-	cout << "done\n";
+	cout << "Running basic normal benchmarks.\n";
+	for(const auto t : test_sizes){
+		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
+		test_results.insert_or_assign(
+			t,
+			test_with_concurrency(t.producers, t.consumers, 1.0f, num_items,
+				normal_producer<float>, normal_consumer<float>));
+		cout << "done\n";
+	}
 
 	print_results(test_results);
 
 	test_results_map stub_results;
+
 	cout << "Now testing with stub producers and consumers.\n";
-	stub_results.insert_or_assign(
-		std::make_pair(1, 1),
-		test_with_concurrency(1, 1, 1.0f, num_items,
-			stub_producer<float>, stub_consumer<float>));
-	stub_results.insert_or_assign(
-		std::make_pair(1, 2),
-		test_with_concurrency(1, 2, 1.0f, num_items,
-			stub_producer<float>, stub_consumer<float>));
-	stub_results.insert_or_assign(
-		std::make_pair(2, 1),
-		test_with_concurrency(2, 1, 1.0f, num_items,
-			stub_producer<float>, stub_consumer<float>));
-	stub_results.insert_or_assign(
-		std::make_pair(2, 2),
-		test_with_concurrency(2, 2, 1.0f, num_items,
-			stub_producer<float>, stub_consumer<float>));
+	for(const auto t : test_sizes){
+		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
+		stub_results.insert_or_assign(
+			t,
+			test_with_concurrency(t.producers, t.consumers, 1.0f, num_items,
+				stub_producer<float>, stub_consumer<float>));
+		cout << "done\n";
+	}
 
 	print_results(stub_results);
 }
