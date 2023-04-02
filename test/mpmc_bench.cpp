@@ -35,6 +35,12 @@ using namespace storm;
 
 using std::cout;
 
+// Compiler barrier macro to make sure it does the work we ask for.
+// At least for GCC, having no outputs makes it implicitly __volatile__.
+// Also add comments so it's easier to see in e.g. Godbolt.
+#define barrier() do { __asm__("# barrier()":::"memory"); } while(0)
+#define consume_value_reg(x) do { __asm__("# consuming: %0":: "r" (x)); } while(0)
+
 // put n items into q
 // value: the value to put copies of into q
 template<typename T>
@@ -69,15 +75,12 @@ static void normal_consumer(
 	start_signal.arrive_and_wait();
 
 	for(int i = 0; i < n; i++){
-		q->pop_wait();
+		[[maybe_unused]] const T loc = q->pop_wait();
+		consume_value_reg(loc);
 	}
 
 	stop_signal.arrive_and_wait();
 }
-
-// Compiler barrier macro to make sure it does the work we ask for.
-// At least for GCC, having no outputs makes it implicitly __volatile__.
-#define barrier() do { __asm__("":::"memory"); } while(0)
 
 // simulate putting n items into q, but do it to a local stub
 // value: the value to put copies of into q
@@ -129,7 +132,7 @@ static void stub_consumer(
 
 	for(int i = 0; i < n; i++){
 		[[maybe_unused]] T loc = std::move(q->front());
-		barrier();
+		consume_value_reg(loc);
 		q->pop();
 	}
 
