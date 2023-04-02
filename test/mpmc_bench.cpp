@@ -256,7 +256,8 @@ static void print_results(const test_results_map &map){
 	using std::setw;
 	using std::right;
 	// Might as well do it by value, since it's like 16 bytes.
-	for(const auto [concurrency, times] : map){
+	// But GCC warns on that, and I don't know an idiom to surpress it.
+	for(const auto & [concurrency, times] : map){
 		cout << concurrency.first << " Producer ";
 		cout << concurrency.second << " Consumer, ";
 		// FIXME: ugh, these don't align. That needs to be prettied up.
