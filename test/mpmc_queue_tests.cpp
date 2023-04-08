@@ -62,15 +62,19 @@ static void test_push_and_size(){
 	}
 
 	std::size_t sz_count = 0;
+	int try_count = 0;
 	while(!q.empty()){
 		const auto i = q.try_pop();
+		try_count++;
 		if(!i.has_value()){
 			cout << "queue ran out early!\n";
+		}else{
+			sz_count++;
 		}
-		sz_count++;
 	}
 
-	cout << "Got " << sz_count << " elements back out from queue.\n";
+	cout << "Got " << sz_count << " elements back out from queue in "
+	     << try_count << " calls to try_pop().\n";
 
 	if(!q.empty()){
 		cout << "Queue is not empty when it should be!\n";
