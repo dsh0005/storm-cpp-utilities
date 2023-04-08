@@ -249,7 +249,7 @@ static concurrency_test_time test_with_concurrency(
 			producer_function, producer_parameters<Queue, T>{
 				worker_parameters<Queue, T>{
 					q,
-					items_per_producer,
+					producer_items_left,
 					&setup,
 					&start,
 					&stop,
@@ -262,7 +262,7 @@ static concurrency_test_time test_with_concurrency(
 		std::async(std::launch::async,
 			consumer_function, worker_parameters<Queue, T>{
 				q,
-				items_per_consumer,
+				consumer_items_left,
 				&setup,
 				&start,
 				&stop,
