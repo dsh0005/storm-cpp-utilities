@@ -41,123 +41,115 @@
 namespace storm {
 	namespace test {
 
+// Here's a struct used to encapsulate the common parameters for a test
+// worker.
+template<typename T>
+struct worker_parameters {
+	// The queue under test:
+	std::shared_ptr<mpmc_queue<T>> q;
+	// How many items this worker should put in or take out:
+	int num_items;
+	// Do setup tasks then arrive at this latch:
+	std::latch *setup_done;
+	// Arrive at this latch second, then _immediately_ start testing after:
+	std::latch *start;
+	// _Immediately_ after the work is done, arrive here:
+	std::latch *stop;
+};
+
+// Here's a struct that we use to encapsulate a whole bunch of params that
+// are specific to producers.
+template<typename T>
+struct producer_parameters {
+	worker_parameters<T> common;
+	// This is the value to insert:
+	T default_value;
+};
+
 // Typedef for the test functions that are on the producer side.
 template<typename T>
 using producer_test_function =
-	std::function<void(
-		std::shared_ptr<mpmc_queue<T>>, // The queue to put into
-		int,                            // how many items to put in
-		T,                              // what value to put in
-		std::latch&,                    // setup done signal
-		std::latch&,                    // start signal
-		std::latch&)>;                  // stop signal
+	std::function<void(producer_parameters<T>)>;
 
 // Typedef for the test functions that are on the consumer side.
 template<typename T>
 using consumer_test_function =
-	std::function<void(
-		std::shared_ptr<mpmc_queue<T>>, // The queue to take from
-		int,                            // how many items to take
-		std::latch&,                    // setup done signal
-		std::latch&,                    // start signal
-		std::latch&)>;                  // stop signal
+	std::function<void(worker_parameters<T>)>;
 
 // put n items into q
 // value: the value to put copies of into q
 template<typename T>
 static void normal_producer(
-		const std::shared_ptr<mpmc_queue<T>> q,
-		const int n,
-		const T value,
-		std::latch &setup_done,
-		std::latch &start_signal,
-		std::latch &stop_signal
-		){
-	setup_done.arrive_and_wait();
-	start_signal.arrive_and_wait();
+		const producer_parameters<T> params){
+	params.common.setup_done->arrive_and_wait();
+	params.common.start->arrive_and_wait();
 
-	for(int i = 0; i < n; i++){
-		q->push(value);
+	for(int i = 0; i < params.common.num_items; i++){
+		params.common.q->push(params.default_value);
 	}
 
-	stop_signal.arrive_and_wait();
+	params.common.stop->arrive_and_wait();
 }
 
 // pop n items from q, using pop_wait
 template<typename T>
 static void normal_consumer(
-		const std::shared_ptr<mpmc_queue<T>> q,
-		const int n,
-		std::latch &setup_done,
-		std::latch &start_signal,
-		std::latch &stop_signal
-		){
-	setup_done.arrive_and_wait();
-	start_signal.arrive_and_wait();
+		const worker_parameters<T> params){
+	params.setup_done->arrive_and_wait();
+	params.start->arrive_and_wait();
 
-	for(int i = 0; i < n; i++){
-		[[maybe_unused]] const T loc = q->pop_wait();
+	for(int i = 0; i < params.num_items; i++){
+		[[maybe_unused]] const T loc = params.q->pop_wait();
 		consume_value_reg(loc);
 	}
 
-	stop_signal.arrive_and_wait();
+	params.stop->arrive_and_wait();
 }
 
 // simulate putting n items into q, but do it to a local stub
 // value: the value to put copies of into q
 template<typename T>
 static void stub_producer(
-		[[maybe_unused]] const std::shared_ptr<mpmc_queue<T>> unused_q,
-		const int n,
-		const T value,
-		std::latch &setup_done,
-		std::latch &start_signal,
-		std::latch &stop_signal
-		){
+		const producer_parameters<T> params){
 	// here's the local queue that we use as a surrogate
 	auto q = std::make_shared<std::queue<T>>();
 
-	setup_done.arrive_and_wait();
+	params.common.setup_done->arrive_and_wait();
 
-	start_signal.arrive_and_wait();
+	params.common.start->arrive_and_wait();
 
-	for(int i = 0; i < n; i++){
-		q->push(value);
+	for(int i = 0; i < params.common.num_items; i++){
+		q->push(params.default_value);
 	}
 
 	barrier();
 
-	stop_signal.arrive_and_wait();
+	params.common.stop->arrive_and_wait();
 }
 
 // simulate popping n items from q, but do it to a local stub
 template<typename T>
 static void stub_consumer(
-		[[maybe_unused]] const std::shared_ptr<mpmc_queue<T>> unused_q,
-		const int n,
-		std::latch &setup_done,
-		std::latch &start_signal,
-		std::latch &stop_signal
-		){
+		worker_parameters<T> params){
 	// Here's the local queue that we use as a surrogate
 	auto q = std::make_shared<std::queue<T>>();
 
 	// We need to fill it up first.
-	for(int i = 0; i < n; i++){
+	for(int i = 0; i < params.num_items; i++){
 		q->push(T());
 	}
 
-	setup_done.arrive_and_wait();
+	params.setup_done->arrive_and_wait();
 
-	start_signal.arrive_and_wait();
+	params.start->arrive_and_wait();
 
-	for(int i = 0; i < n; i++){
+	for(int i = 0; i < params.num_items; i++){
 		[[maybe_unused]] T loc = std::move(q->front());
 		consume_value_reg(loc);
 		q->pop();
 	}
 
-	stop_signal.arrive_and_wait();
+	params.stop->arrive_and_wait();
 }
 
 // How much time was taken by a benchmark.
@@ -205,16 +197,29 @@ static concurrency_test_time test_with_concurrency(
 	for(int i = 0; i < producers-1; i++){
 		producer_futs.push_back(
 			std::async(std::launch::async,
-				producer_function, q, items_per_producer, default_value,
-				std::ref(setup), std::ref(start), std::ref(stop)));
+				producer_function, producer_parameters<T>{
+					worker_parameters<T>{
+						q,
+						items_per_producer,
+						&setup,
+						&start,
+						&stop,
+					},
+					default_value,
+				}));
 
 		producer_items_left -= items_per_producer;
 	}
 	for(int i = 0; i < consumers-1; i++){
 		consumer_futs.push_back(
 			std::async(std::launch::async,
-				consumer_function, q, items_per_consumer,
-				std::ref(setup), std::ref(start), std::ref(stop)));
+				consumer_function, worker_parameters<T>{
+					q,
+					items_per_consumer,
+					&setup,
+					&start,
+					&stop,
+				}));
 
 		consumer_items_left -= items_per_consumer;
 	}
@@ -222,13 +227,26 @@ static concurrency_test_time test_with_concurrency(
 	// Now put the remaining work on the last workers.
 	producer_futs.push_back(
 		std::async(std::launch::async,
-			producer_function, q, producer_items_left, default_value,
-			std::ref(setup), std::ref(start), std::ref(stop)));
+			producer_function, producer_parameters<T>{
+				worker_parameters<T>{
+					q,
+					items_per_producer,
+					&setup,
+					&start,
+					&stop,
+				},
+				default_value,
+			}));
 	producer_items_left = 0;
 	consumer_futs.push_back(
 		std::async(std::launch::async,
-			consumer_function, q, consumer_items_left,
-			std::ref(setup), std::ref(start), std::ref(stop)));
+			consumer_function, worker_parameters<T>{
+				q,
+				items_per_consumer,
+				&setup,
+				&start,
+				&stop,
+			}));
 	consumer_items_left = 0;
 
 	// Make sure that everyone is set up and ready to start timing.
