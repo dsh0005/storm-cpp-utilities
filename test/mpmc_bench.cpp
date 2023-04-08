@@ -60,14 +60,16 @@ static void print_results(const test_results_map &map){
 	// Might as well do it by value, since it's like 16 bytes.
 	// But GCC warns on that, and I don't know an idiom to surpress it.
 	for(const auto & [concurrency, times] : map){
-		cout << concurrency.producers << " Producer ";
-		cout << concurrency.consumers << " Consumer, ";
+		cout << right << setw(3) << concurrency.producers << " Producer ";
+		cout << right << setw(2) << concurrency.consumers << " Consumer, ";
 		cout << "wall: " << right << setw(14) << times.wall_time;
 		cout << " cpu: " << right << setw(11) << times.cpu_time << '\n';
 	}
 }
 
 int main(int /* argc */, char ** /* argv */){
+	using std::chrono::milliseconds;
+
 	// Here's where we store our results.
 	test_results_map test_results;
 
@@ -85,12 +87,35 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		test_results.insert_or_assign(
 			t,
-			test_with_concurrency(t.producers, t.consumers, 1.0f, num_items,
+			test_with_concurrency(
+				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
 				normal_producer<float>, normal_consumer<float>));
 		cout << "done\n";
 	}
 
 	print_results(test_results);
+
+	test_results_map slow_results;
+
+	static constexpr int slow_items = 10'000;
+	static constexpr std::array slow_test_sizes(std::to_array<test_size>({
+		{10, 1},
+		{100, 1},
+		{100, 5},
+	}));
+
+	cout << "Running slow-producer benchmarks.\n";
+	for(const auto t : slow_test_sizes){
+		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
+		slow_results.insert_or_assign(
+			t,
+			test_with_concurrency(
+				t.producers, t.consumers, 1.0f, slow_items, milliseconds(10),
+				slow_producer<float>, normal_consumer<float>));
+		cout << "done\n";
+	}
+
+	print_results(slow_results);
 
 	test_results_map stub_results;
 
@@ -99,7 +124,8 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		stub_results.insert_or_assign(
 			t,
-			test_with_concurrency(t.producers, t.consumers, 1.0f, num_items,
+			test_with_concurrency(
+				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
 				stub_producer<float>, stub_consumer<float>));
 		cout << "done\n";
 	}

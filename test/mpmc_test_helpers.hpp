@@ -64,6 +64,8 @@ struct producer_parameters {
 	worker_parameters<T> common;
 	// This is the value to insert:
 	T default_value;
+	// How long to wait between insertions:
+	std::chrono::steady_clock::duration delay;
 };
 
 // Typedef for the test functions that are on the producer side.
@@ -77,7 +79,6 @@ using consumer_test_function =
 	std::function<void(worker_parameters<T>)>;
 
 // put n items into q
-// value: the value to put copies of into q
 template<typename T>
 static void normal_producer(
 		const producer_parameters<T> params){
@@ -106,8 +107,24 @@ static void normal_consumer(
 	params.stop->arrive_and_wait();
 }
 
+// put n items into q, with a delay between each
+template<typename T>
+static void slow_producer(
+		const producer_parameters<T> params){
+	params.common.setup_done->arrive_and_wait();
+	params.common.start->arrive_and_wait();
+
+	for(int i = 0; i < params.common.num_items - 1; i++){
+		params.common.q->push(params.default_value);
+		std::this_thread::sleep_for(params.delay);
+	}
+	// Do the last one outside of the loop to avoid the extra sleep.
+	params.common.q->push(params.default_value);
+
+	params.common.stop->arrive_and_wait();
+}
+
 // simulate putting n items into q, but do it to a local stub
-// value: the value to put copies of into q
 template<typename T>
 static void stub_producer(
 		const producer_parameters<T> params){
@@ -163,6 +180,7 @@ template<typename T>
 static concurrency_test_time test_with_concurrency(
 		const int producers, const int consumers,
 		const T default_value, const int num_items,
+		const std::chrono::steady_clock::duration prod_delay,
 		const producer_test_function<T> producer_function,
 		const consumer_test_function<T> consumer_function){
 	// Here's the queue we'll be testing.
@@ -206,6 +224,7 @@ static concurrency_test_time test_with_concurrency(
 						&stop,
 					},
 					default_value,
+					prod_delay,
 				}));
 
 		producer_items_left -= items_per_producer;
@@ -236,6 +255,7 @@ static concurrency_test_time test_with_concurrency(
 					&stop,
 				},
 				default_value,
+				prod_delay,
 			}));
 	producer_items_left = 0;
 	consumer_futs.push_back(
