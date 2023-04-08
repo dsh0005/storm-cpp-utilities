@@ -27,6 +27,7 @@
 #include <cassert>
 
 #include "mpmc_queue.hpp"
+#include "mpmc_semaphore_queue.hpp"
 #include "mpmc_test_helpers.hpp"
 using namespace storm;
 using namespace storm::test;
@@ -34,20 +35,35 @@ using namespace storm::test;
 using std::cout;
 
 static void instantiate_some_queues(){
-	cout << "instantiating some mpmc_queues\n";
-	// just instantiate some queues with different types
-	// This tests the templating, constructors, and destructors
-	mpmc_queue<int> qi;
-	mpmc_queue<float> qf;
+	{
+		cout << "instantiating some mpmc_queues\n";
+		// just instantiate some queues with different types
+		// This tests the templating, constructors, and destructors
+		mpmc_queue<int> qi;
+		mpmc_queue<float> qf;
 
-	// how about something non-copyable?
-	mpmc_queue<std::future<void>> qfut;
+		// how about something non-copyable?
+		mpmc_queue<std::future<void>> qfut;
 
-	cout << "destroying some mpmc_queues\n";
+		cout << "destroying some mpmc_queues\n";
+	}
+	{
+		cout << "instantiating some mpmc_semaphore_queues\n";
+		// just instantiate some queues with different types
+		// This tests the templating, constructors, and destructors
+		mpmc_semaphore_queue<int> qi;
+		mpmc_semaphore_queue<float> qf;
+
+		// how about something non-copyable?
+		mpmc_semaphore_queue<std::future<void>> qfut;
+
+		cout << "destroying some mpmc_semaphore_queues\n";
+	}
 }
 
+template<template<typename> typename Queue>
 static void test_push_and_size(){
-	mpmc_queue<int> q;
+	Queue<int> q;
 
 	for(int i = 0; i < 10; i++){
 		q.push(i);
@@ -90,10 +106,15 @@ int main(int /* argc */, char ** /* argv */){
 	cout << "instantiating queues finished.\n";
 
 	cout << "Running basic tests of push() and size().\n";
-	test_push_and_size();
+	test_push_and_size<mpmc_queue>();
+
+	cout << "Running push and size tests for the semaphore queue\n";
+	test_push_and_size<mpmc_semaphore_queue>();
 
 	cout << "Running basic single-producer single-consumer tests.\n";
 	test_with_concurrency<mpmc_queue<float>, float>(1, 1, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
+	cout << "And again with the semaphore queue.\n";
+	test_with_concurrency<mpmc_semaphore_queue<float>, float>(1, 1, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_semaphore_queue<float>, float>, normal_consumer<mpmc_semaphore_queue<float>, float>);
 
 	cout << "Running MPMC tests with small amounts of concurrency.\n";
 	cout << "1p2c: " << std::flush;
@@ -104,5 +125,16 @@ int main(int /* argc */, char ** /* argv */){
 	cout << "done\n";
 	cout << "2p2c: " << std::flush;
 	test_with_concurrency<mpmc_queue<float>, float>(2, 2, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
+	cout << "done\n";
+
+	cout << "And again with the semaphore queue.\n";
+	cout << "1p2c: " << std::flush;
+	test_with_concurrency<mpmc_semaphore_queue<float>, float>(1, 2, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_semaphore_queue<float>, float>, normal_consumer<mpmc_semaphore_queue<float>, float>);
+	cout << "done\n";
+	cout << "2p1c: " << std::flush;
+	test_with_concurrency<mpmc_semaphore_queue<float>, float>(2, 1, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_semaphore_queue<float>, float>, normal_consumer<mpmc_semaphore_queue<float>, float>);
+	cout << "done\n";
+	cout << "2p2c: " << std::flush;
+	test_with_concurrency<mpmc_semaphore_queue<float>, float>(2, 2, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_semaphore_queue<float>, float>, normal_consumer<mpmc_semaphore_queue<float>, float>);
 	cout << "done\n";
 }
