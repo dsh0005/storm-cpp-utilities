@@ -89,16 +89,16 @@ int main(int /* argc */, char ** /* argv */){
 	test_push_and_size();
 
 	cout << "Running basic single-producer single-consumer tests.\n";
-	test_with_concurrency<float>(1, 1, 1.0f, num_items, milliseconds(0), normal_producer<float>, normal_consumer<float>);
+	test_with_concurrency<mpmc_queue<float>, float>(1, 1, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
 
 	cout << "Running MPMC tests with small amounts of concurrency.\n";
 	cout << "1p2c: " << std::flush;
-	test_with_concurrency<float>(1, 2, 1.0f, num_items, milliseconds(0), normal_producer<float>, normal_consumer<float>);
+	test_with_concurrency<mpmc_queue<float>, float>(1, 2, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
 	cout << "done\n";
 	cout << "2p1c: " << std::flush;
-	test_with_concurrency<float>(2, 1, 1.0f, num_items, milliseconds(0), normal_producer<float>, normal_consumer<float>);
+	test_with_concurrency<mpmc_queue<float>, float>(2, 1, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
 	cout << "done\n";
 	cout << "2p2c: " << std::flush;
-	test_with_concurrency<float>(2, 2, 1.0f, num_items, milliseconds(0), normal_producer<float>, normal_consumer<float>);
+	test_with_concurrency<mpmc_queue<float>, float>(2, 2, 1.0f, num_items, milliseconds(0), normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>);
 	cout << "done\n";
 }

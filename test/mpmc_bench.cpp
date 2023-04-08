@@ -87,9 +87,9 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		test_results.insert_or_assign(
 			t,
-			test_with_concurrency(
+			test_with_concurrency<mpmc_queue<float>, float>(
 				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
-				normal_producer<float>, normal_consumer<float>));
+				normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>));
 		cout << "done\n";
 	}
 
@@ -110,9 +110,9 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		slow_results.insert_or_assign(
 			t,
-			test_with_concurrency(
+			test_with_concurrency<mpmc_queue<float>, float>(
 				t.producers, t.consumers, 1.0f, slow_items, milliseconds(10),
-				slow_producer<float>, normal_consumer<float>));
+				slow_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>));
 		cout << "done\n";
 	}
 
@@ -125,9 +125,9 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		stub_results.insert_or_assign(
 			t,
-			test_with_concurrency(
+			test_with_concurrency<mpmc_queue<float>, float>(
 				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
-				stub_producer<float>, stub_consumer<float>));
+				stub_producer<mpmc_queue<float>, float>, stub_consumer<mpmc_queue<float>, float>));
 		cout << "done\n";
 	}
 

@@ -43,10 +43,10 @@ namespace storm {
 
 // Here's a struct used to encapsulate the common parameters for a test
 // worker.
-template<typename T>
+template<typename Queue, typename T>
 struct worker_parameters {
 	// The queue under test:
-	std::shared_ptr<mpmc_queue<T>> q;
+	std::shared_ptr<Queue> q;
 	// How many items this worker should put in or take out:
 	int num_items;
 	// Do setup tasks then arrive at this latch:
@@ -59,9 +59,9 @@ struct worker_parameters {
 
 // Here's a struct that we use to encapsulate a whole bunch of params that
 // are specific to producers.
-template<typename T>
+template<typename Queue, typename T>
 struct producer_parameters {
-	worker_parameters<T> common;
+	worker_parameters<Queue, T> common;
 	// This is the value to insert:
 	T default_value;
 	// How long to wait between insertions:
@@ -69,19 +69,19 @@ struct producer_parameters {
 };
 
 // Typedef for the test functions that are on the producer side.
-template<typename T>
+template<typename Queue, typename T>
 using producer_test_function =
-	std::function<void(producer_parameters<T>)>;
+	std::function<void(producer_parameters<Queue, T>)>;
 
 // Typedef for the test functions that are on the consumer side.
-template<typename T>
+template<typename Queue, typename T>
 using consumer_test_function =
-	std::function<void(worker_parameters<T>)>;
+	std::function<void(worker_parameters<Queue, T>)>;
 
 // put n items into q
-template<typename T>
+template<typename Queue, typename T>
 static void normal_producer(
-		const producer_parameters<T> params){
+		const producer_parameters<Queue, T> params){
 	params.common.setup_done->arrive_and_wait();
 	params.common.start->arrive_and_wait();
 
@@ -93,9 +93,9 @@ static void normal_producer(
 }
 
 // pop n items from q, using pop_wait
-template<typename T>
+template<typename Queue, typename T>
 static void normal_consumer(
-		const worker_parameters<T> params){
+		const worker_parameters<Queue, T> params){
 	params.setup_done->arrive_and_wait();
 	params.start->arrive_and_wait();
 
@@ -108,9 +108,9 @@ static void normal_consumer(
 }
 
 // put n items into q, with a delay between each
-template<typename T>
+template<typename Queue, typename T>
 static void slow_producer(
-		const producer_parameters<T> params){
+		const producer_parameters<Queue, T> params){
 	params.common.setup_done->arrive_and_wait();
 	params.common.start->arrive_and_wait();
 
@@ -125,9 +125,9 @@ static void slow_producer(
 }
 
 // simulate putting n items into q, but do it to a local stub
-template<typename T>
+template<typename Queue, typename T>
 static void stub_producer(
-		const producer_parameters<T> params){
+		const producer_parameters<Queue, T> params){
 	// here's the local queue that we use as a surrogate
 	auto q = std::make_shared<std::queue<T>>();
 
@@ -145,9 +145,9 @@ static void stub_producer(
 }
 
 // simulate popping n items from q, but do it to a local stub
-template<typename T>
+template<typename Queue, typename T>
 static void stub_consumer(
-		worker_parameters<T> params){
+		worker_parameters<Queue, T> params){
 	// Here's the local queue that we use as a surrogate
 	auto q = std::make_shared<std::queue<T>>();
 
@@ -176,15 +176,15 @@ struct concurrency_test_time {
 };
 
 // test with producer(s) and consumer(s) on different threads
-template<typename T>
+template<typename Queue, typename T>
 static concurrency_test_time test_with_concurrency(
 		const int producers, const int consumers,
 		const T default_value, const int num_items,
 		const std::chrono::steady_clock::duration prod_delay,
-		const producer_test_function<T> producer_function,
-		const consumer_test_function<T> consumer_function){
+		const producer_test_function<Queue, T> producer_function,
+		const consumer_test_function<Queue, T> consumer_function){
 	// Here's the queue we'll be testing.
-	auto q = std::make_shared<mpmc_queue<T>>();
+	auto q = std::make_shared<Queue>();
 
 	// This is the wall clock start time.
 	std::chrono::time_point<std::chrono::steady_clock> wall_start;
@@ -215,8 +215,8 @@ static concurrency_test_time test_with_concurrency(
 	for(int i = 0; i < producers-1; i++){
 		producer_futs.push_back(
 			std::async(std::launch::async,
-				producer_function, producer_parameters<T>{
-					worker_parameters<T>{
+				producer_function, producer_parameters<Queue, T>{
+					worker_parameters<Queue, T>{
 						q,
 						items_per_producer,
 						&setup,
@@ -232,7 +232,7 @@ static concurrency_test_time test_with_concurrency(
 	for(int i = 0; i < consumers-1; i++){
 		consumer_futs.push_back(
 			std::async(std::launch::async,
-				consumer_function, worker_parameters<T>{
+				consumer_function, worker_parameters<Queue, T>{
 					q,
 					items_per_consumer,
 					&setup,
@@ -246,8 +246,8 @@ static concurrency_test_time test_with_concurrency(
 	// Now put the remaining work on the last workers.
 	producer_futs.push_back(
 		std::async(std::launch::async,
-			producer_function, producer_parameters<T>{
-				worker_parameters<T>{
+			producer_function, producer_parameters<Queue, T>{
+				worker_parameters<Queue, T>{
 					q,
 					items_per_producer,
 					&setup,
@@ -260,7 +260,7 @@ static concurrency_test_time test_with_concurrency(
 	producer_items_left = 0;
 	consumer_futs.push_back(
 		std::async(std::launch::async,
-			consumer_function, worker_parameters<T>{
+			consumer_function, worker_parameters<Queue, T>{
 				q,
 				items_per_consumer,
 				&setup,
