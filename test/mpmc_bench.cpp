@@ -32,6 +32,7 @@
 #include <cstddef>
 
 #include "mpmc_queue.hpp"
+#include "mpmc_semaphore_queue.hpp"
 #include "mpmc_test_helpers.hpp"
 using namespace storm;
 using namespace storm::test;
@@ -67,7 +68,8 @@ static void print_results(const test_results_map &map){
 	}
 }
 
-int main(int /* argc */, char ** /* argv */){
+template<template<typename> typename Queue>
+void benchmark(){
 	using std::chrono::milliseconds;
 
 	// Here's where we store our results.
@@ -87,9 +89,9 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		test_results.insert_or_assign(
 			t,
-			test_with_concurrency<mpmc_queue<float>, float>(
+			test_with_concurrency<Queue<float>, float>(
 				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
-				normal_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>));
+				normal_producer<Queue<float>, float>, normal_consumer<Queue<float>, float>));
 		cout << "done\n";
 	}
 
@@ -110,9 +112,9 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		slow_results.insert_or_assign(
 			t,
-			test_with_concurrency<mpmc_queue<float>, float>(
+			test_with_concurrency<Queue<float>, float>(
 				t.producers, t.consumers, 1.0f, slow_items, milliseconds(10),
-				slow_producer<mpmc_queue<float>, float>, normal_consumer<mpmc_queue<float>, float>));
+				slow_producer<Queue<float>, float>, normal_consumer<Queue<float>, float>));
 		cout << "done\n";
 	}
 
@@ -125,11 +127,21 @@ int main(int /* argc */, char ** /* argv */){
 		cout << t.producers << 'p' << t.consumers << "c: " << std::flush;
 		stub_results.insert_or_assign(
 			t,
-			test_with_concurrency<mpmc_queue<float>, float>(
+			test_with_concurrency<Queue<float>, float>(
 				t.producers, t.consumers, 1.0f, num_items, milliseconds(0),
-				stub_producer<mpmc_queue<float>, float>, stub_consumer<mpmc_queue<float>, float>));
+				stub_producer<Queue<float>, float>, stub_consumer<Queue<float>, float>));
 		cout << "done\n";
 	}
 
 	print_results(stub_results);
+}
+
+int main(int /* argc */, char ** /* argv */){
+	cout << "Benchmarking mpmc_queue:\n";
+	benchmark<mpmc_queue>();
+
+	cout << "============================\n";
+
+	cout << "Benchmarking mpmc_semaphore_queue:\n";
+	benchmark<mpmc_semaphore_queue>();
 }
