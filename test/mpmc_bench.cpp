@@ -100,8 +100,9 @@ int main(int /* argc */, char ** /* argv */){
 	static constexpr int slow_items = 10'000;
 	static constexpr std::array slow_test_sizes(std::to_array<test_size>({
 		{10, 1},
+		{50, 1},
 		{100, 1},
-		{100, 5},
+		{100, 2},
 	}));
 
 	cout << "Running slow-producer benchmarks.\n";
