@@ -93,8 +93,11 @@ namespace storm {
 		// emplace: construct an element in-place in the queue.
 		template<typename... Args>
 		void emplace(Args&&... args){
-			std::lock_guard<std::shared_mutex> lk(mtx);
-			q.emplace(std::forward<Args>(args)...);
+			{
+				std::lock_guard<std::shared_mutex> lk(mtx);
+				q.emplace(std::forward<Args>(args)...);
+				// Again, release the lock then notify.
+			}
 			cv.notify_one();
 		}
 
