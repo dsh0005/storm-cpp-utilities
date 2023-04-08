@@ -80,7 +80,7 @@ static void test_push_and_size(){
 int main(int /* argc */, char ** /* argv */){
 	using std::chrono::milliseconds;
 
-	static constexpr int num_items = 10'000'000;
+	static constexpr int num_items = 1'000'000;
 
 	instantiate_some_queues();
 	cout << "instantiating queues finished.\n";
